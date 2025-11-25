@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe Architect</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* --- CSS VARIABLES & RESET (Vercel/Slate Theme) --- */
+        :root {
+            --bg-app: #020617;       /* Slate 950 */
+            --bg-panel: #0f172a;     /* Slate 900 */
+            --bg-node: #1e293b;      /* Slate 800 */
+            --bg-input: #334155;     /* Slate 700 */
+            --border-color: #334155; /* Slate 700 */
+            --text-main: #f1f5f9;    /* Slate 100 */
+            --text-muted: #94a3b8;   /* Slate 400 */
+            --accent: #6366f1;       /* Indigo 500 */
+            --accent-glow: rgba(99, 102, 241, 0.2);
+            --grid-color: #1e293b;
+            --line-color: #64748b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; outline: none; }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-app);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            font-size: 14px;
+        }
+
+        /* --- LAYOUT --- */
+        header {
+            height: 60px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-panel);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 10;
+        }
+
+        .brand {
+            font-weight: 700;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* --- SIDEBAR (Toolbox) --- */
+        .sidebar {
+            width: 250px;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+        }
+
+        .sidebar h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            margin-top: 10px;
+        }
+        .sidebar h3:first-child { margin-top: 0; }
+
+        /* Global Description Input */
+        .sidebar-input {
+            width: 100%;
+            background: var(--bg-node);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: 6px;
+            padding: 10px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            resize: vertical;
+            min-height: 80px;
+        }
+        .sidebar-input:focus { border-color: var(--accent); }
+
+        .tool-item {
+            background: var(--bg-node);
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            border-radius: 6px;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .tool-item:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--accent-glow);
+        }
+
+        .tool-item i { color: var(--accent); width: 20px; text-align: center; }
+
+        /* --- CANVAS AREA --- */
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            background-image: 
+                linear-gradient(var(--grid-color) 1px, transparent 1px),
+                linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+            background-size: 40px 40px;
+            overflow: hidden;
+            cursor: grab;
+            /* PREVENT TEXT SELECTION */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .canvas-wrapper:active { cursor: grabbing; }
+
+        /* SVG Layer for wires */
+        #connections-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to nodes */
+            z-index: 0;
+        }
+
+        /* --- NODES ON CANVAS --- */
+        .node {
+            position: absolute;
+            width: 240px; /* Slightly wider to fit port */
+            background: var(--bg-node);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 1;
+            cursor: default;
+            display: flex;
+            flex-direction: column;
+            /* Ensure text inside nodes isn't selectable either */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .node.selected {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+
+        .node-header {
+            padding: 10px 15px;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: move; /* Only drag by header */
+            font-weight: 600;
+        }
+
+        .node-content {
+            padding: 12px 15px;
+            color: var(--text-muted);
+            font-size: 0.9em;
+            min-height: 60px;
+        }
+        
+        .node-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .node-tech {
+            display: inline-block;
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
+        }
+        
+        .node-port {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: var(--text-muted);
+        }
+
+        /* Ports for connection */
+        .port {
+            width: 12px;
+            height: 12px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            position: absolute;
+            cursor: crosshair;
+            transition: transform 0.2s, background 0.2s;
+            border: 2px solid var(--bg-node);
+        }
+
+        .port:hover { transform: scale(1.4); background: var(--accent); }
+        .port.output { right: -6px; top: 20px; background: var(--accent); }
+        .port.input { left: -6px; top: 20px; }
+
+        /* --- PROPERTIES PANEL --- */
+        .inspector {
+            width: 340px; /* Slightly wider for data editor */
+            background: var(--bg-panel);
+            border-left: 1px solid var(--border-color);
+            padding: 20px;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            gap: 20px;
+            z-index: 5;
+            overflow-y: auto; /* Allow scrolling for many fields */
+            padding-bottom: 100px;
+        }
+
+        .inspector.active { display: flex; }
+
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-size: 0.8rem; color: var(--text-muted); }
+        
+        .form-row { display: flex; gap: 10px; }
+        .form-row .form-group { flex: 1; }
+        
+        input, textarea, select {
+            background: var(--bg-app);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px;
+            border-radius: 4px;
+            font-family: inherit;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--accent);
+        }
+
+        /* --- MULTI-TABLE DATA EDITOR --- */
+        .data-editor-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .table-block {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        .table-header-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+        }
+
+        .table-name-input {
+            flex: 1;
+            font-weight: bold;
+            color: var(--accent);
+            background: rgba(0,0,0,0.2);
+            border: 1px solid transparent;
+            padding: 6px;
+        }
+        .table-name-input:focus { border-color: var(--accent); }
+
+        .fields-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .data-field-row {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .data-field-name { flex: 2; font-size: 0.9em; padding: 6px; }
+        .data-field-type { flex: 1.5; font-size: 0.9em; padding: 6px; }
+        
+        .btn-icon {
+            padding: 6px;
+            color: var(--text-muted);
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            min-width: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-icon:hover {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+        /* Ensure click hits button not icon */
+        .btn-icon i { pointer-events: none; }
+
+        .btn-small-add {
+            width: 100%;
+            padding: 6px;
+            background: rgba(255,255,255,0.05);
+            border: 1px dashed var(--border-color);
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .btn-small-add:hover {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-main);
+        }
+
+        .btn-add-table {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-node);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        .btn-add-table:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* --- ROUTES EDITOR STYLES --- */
+        .routes-editor-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .route-block {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .route-header-row {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .route-method-select {
+            flex: 0 0 80px;
+            padding: 6px;
+            font-size: 0.85em;
+            font-weight: 600;
+            background: var(--bg-app);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: 4px;
+        }
+
+        .route-path-input {
+            flex: 1;
+            padding: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            border-radius: 4px;
+        }
+        .route-path-input:focus { border-color: var(--accent); }
+
+        .route-desc-input {
+            width: 100%;
+            padding: 6px;
+            font-size: 0.85em;
+            background: rgba(0,0,0,0.15);
+            border: 1px solid transparent;
+            color: var(--text-muted);
+            border-radius: 4px;
+            resize: vertical;
+            min-height: 50px;
+        }
+        .route-desc-input:focus { 
+            border-color: var(--accent); 
+            color: var(--text-main);
+        }
+
+
+        /* --- BUTTONS --- */
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-danger { background: #ef4444; color: white; margin-top: auto;}
+        
+        /* --- SVG STYLES --- */
+        path.connection {
+            stroke: var(--line-color);
+            stroke-width: 2;
+            fill: none;
+            pointer-events: stroke; /* Allow clicking the line */
+        }
+        path.connection:hover { stroke: white; cursor: pointer; }
+        path.connection.active { stroke: var(--accent); stroke-width: 3; }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 20;
+        }
+        .toast.show { opacity: 1; }
+        
+        .helper-text {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 6px;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        /* --- GUIDE MODAL --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(2px);
+        }
+        .modal-overlay.active { display: flex; }
+
+        .modal-content {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            width: 600px;
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h2 { font-size: 1.2rem; color: var(--text-main); }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        .modal-close:hover { color: var(--text-main); }
+
+        .modal-body {
+            padding: 20px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+        .modal-body h3 { color: var(--accent); margin-top: 15px; margin-bottom: 8px; font-size: 1rem; }
+        .modal-body ul { margin-left: 20px; margin-bottom: 15px; }
+        .modal-body li { margin-bottom: 5px; }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0,0,0,0.2);
+        }
+        
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        .checkbox-wrapper input { width: auto; margin: 0; cursor: pointer; }
+
+        /* Style Selection */
+        .style-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .style-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+        .style-option:hover {
+            color: var(--text-main);
+        }
+        .style-option input[type="radio"] {
+            accent-color: var(--accent);
+            margin: 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <div class="brand">
+            <i class="fa-solid fa-bezier-curve" style="color: var(--accent)"></i>
+            VIBE ARCHITECT
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button class="btn" style="background: var(--bg-node); border: 1px solid var(--border-color); color: var(--text-muted);" onclick="app.openGuide()">
+                <i class="fa-solid fa-book"></i> Guide
+            </button>
+            <!--<button class="btn btn-primary" onclick="app.exportToMarkdown()">
+                <i class="fa-solid fa-file-export"></i> Exporter Prompt
+            </button>-->
+            <button class="btn" style="background: var(--accent); color: white; border: 1px solid var(--accent);" onclick="app.buildWithCopilot()">
+                <i class="fa-solid fa-robot"></i> Generate App
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN LAYOUT -->
+    <div class="main-container">
+        
+        <!-- SIDEBAR: TOOLBOX -->
+        <div class="sidebar">
+            
+            <!-- Project Global Description -->
+            <div class="sidebar-group">
+                <h3>Project Description</h3>
+                <textarea id="global-desc" class="sidebar-input" rows="3" placeholder="Global context (e.g., B2B E-commerce...)"></textarea>
+            </div>
+
+            <!-- Project Style Selection -->
+            <div class="sidebar-group">
+                <h3>Style</h3>
+                <div class="style-options">
+                    <label class="style-option" title="High-end app UI design. 'Swiss International Design' style: ultra-minimalist, pure white background with generous use of negative space (whitespace). Bold black Sans-Serif typography (like Helvetica Now). Monochrome color palette with a single accent color. Subtle buttons with very soft drop shadows for depth. Strict grid layout, clean font-awesome icons.">
+                        <input type="radio" name="project-style" value="minimaliste" checked>
+                        <span>Premium SaaS</span>
+                    </label>
+                    <label class="style-option" title="Dark Mode app interface using 'Glassmorphism' style. Translucent cards and panels with background blur effect and fine bright white borders. Abstract background with 'Mesh Gradients' (fluid gradients) in deep vivid hues. Subtle floating 3D elements. Modern bright white typography. Diffuse glow effect around interactive elements. Frosted texture, premium and technological look. Dribbble top trend style render.">
+                        <input type="radio" name="project-style" value="ludique">
+                        <span>Futuristic Glassmorphism</span>
+                    </label>
+                    <label class="style-option" title="Modular UI design 'Bento Box Grid' style. Screen divided into perfectly aligned rectangular and square blocks with rounded corners (squircle shapes). Very soft light gray background (#F5F5F7). Soft pastel colors to categorize information, mixed with neutral grays. Highly readable and hierarchical typography. Functional, organized, dense yet airy aesthetic. Inspired by 'Apple Human Interface Guidelines'.">
+                        <input type="radio" name="project-style" value="futuriste">
+                        <span>Bento Grid</span>
+                    </label>
+                    <label class="style-option" title="Modern 'Neo-Brutalism' mobile UI style. High contrast colors: bright light background with massive black text and thick unsoftened black borders. Rectangular buttons with hard shadows offset at 45 degrees. Decorative typography mixing Serif and Sans-Serif fonts. Use of collage-style graphic elements and industrial or retro icons. Raw, trendy, vibrant and challenging aesthetic. Asymmetrical layout that catches the eye.">
+                        <input type="radio" name="project-style" value="organique">
+                        <span>Pop Neo-Brutalism</span>
+                    </label>
+                </div>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 15px 0;">
+
+            <h3>Components</h3>
+            <div class="tool-item" draggable="true" data-type="frontend">
+                <i class="fa-solid fa-laptop-code"></i> Frontend App
+            </div>
+            <div class="tool-item" draggable="true" data-type="backend">
+                <i class="fa-solid fa-server"></i> Backend API
+            </div>
+            <div class="tool-item" draggable="true" data-type="database">
+                <i class="fa-solid fa-database"></i> Database
+            </div>
+            <div class="tool-item" draggable="true" data-type="cloud">
+                <i class="fa-solid fa-cloud"></i> Cloud Service
+            </div>
+            <div class="tool-item" draggable="true" data-type="custom">
+                <i class="fa-solid fa-cube"></i> Generic Block
+            </div>
+        </div>
+
+        <!-- CANVAS -->
+        <div class="canvas-wrapper" id="canvas">
+            <!-- SVG Layer for wires -->
+            <svg id="connections-layer"></svg>
+            
+            <!-- Helper Text -->
+            <div class="helper-text">
+                <i class="fa-solid fa-mouse-pointer"></i> Drag-and-drop to add or link components
+            </div>
+        </div>
+
+        <!-- INSPECTOR: PROPERTIES -->
+        <div class="inspector" id="inspector">
+            <h3>Properties</h3>
+            <div class="form-group">
+                <label>Component Name</label>
+                <input type="text" id="prop-name" placeholder="Ex: Main Dashboard">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Tech Stack</label>
+                    <input type="text" id="prop-tech" placeholder="Ex: React">
+                </div>
+                <div class="form-group" style="flex: 0 0 80px;">
+                    <label>Port</label>
+                    <input type="number" id="prop-port" placeholder="8080">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Description / Role</label>
+                <textarea id="prop-desc" rows="4" placeholder="Describe responsibility..."></textarea>
+            </div>
+            
+            <!-- NEW MULTI-TABLE DATA EDITOR -->
+            <div class="form-group">
+                <label>Data Models / Tables</label>
+                <div class="data-editor-container" id="data-editor-tables">
+                    <!-- Tables will be dynamically added here -->
+                </div>
+                <button class="btn-add-table" id="btn-add-table">
+                    <i class="fa-solid fa-table"></i> Add Table
+                </button>
+            </div>
+
+            <!-- NEW ROUTES/ENDPOINTS EDITOR -->
+            <div class="form-group">
+                <label>API Routes / Endpoints</label>
+                <div class="routes-editor-container" id="routes-editor-container">
+                    <!-- Routes will be dynamically added here -->
+                </div>
+                <button class="btn-add-table" id="btn-add-route">
+                    <i class="fa-solid fa-route"></i> Add Route
+                </button>
+            </div>
+
+            <button class="btn btn-danger" onclick="app.deleteSelectedNode()">
+                <i class="fa-solid fa-trash"></i> Delete
+            </button>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast">Export generated!</div>
+
+    <!-- GUIDE MODAL -->
+    <div class="modal-overlay" id="guide-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-book" style="color: var(--accent); margin-right: 10px;"></i> User Guide</h2>
+                <button class="modal-close" onclick="app.closeGuide()"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <h3>Welcome to Vibe Architect!</h3>
+                    Vibe Architect is a <strong>visual software architecture design tool</strong> that allows you to create application diagrams by dragging and dropping components, configuring them, and then generating detailed prompts for AI agents like Copilot or Claude Code.
+                <h3>1. Architecture Design</h3>
+                <ul>
+                    <li><strong>Description:</strong> Briefly describe the concept and main features of your application.</li>
+                    <li><strong>Drag & Drop:</strong> Take components from the left sidebar and drop them onto the grid.</li>
+                    <li><strong>Move:</strong> Click and hold a component header to move it.</li>
+                    <li><strong>Connect:</strong> Drag and drop between the output ports (right) of a component and the input ports (left) of another to create connections.</li>
+                </ul>
+
+                <h3>2. Component Configuration</h3>
+                <ul>
+                    <li><strong>Select:</strong> Click on a component to open the properties panel on the right.</li>
+                    <li><strong>Details:</strong> Modify the name, technology, port, and description.</li>
+                    <li><strong>Data:</strong> Add tables and fields to define your database schema.</li>
+                    <li><strong>API:</strong> Define the routes and endpoints of your services.</li>
+                </ul>
+
+                <h3>3. Export AI Prompt</h3>
+                <ul>
+                    <li>Click the <strong>"Export AI Prompt"</strong> button at the top right to generate a detailed prompt based on your architecture.</li>
+                    <li>The file will be automatically created in your workspace.</li>
+                    <li>Send "build the app" to your AI agent (Gemini 3 Pro recommended)</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="dont-show-guide">
+                    Do not show this guide at startup
+                </label>
+                <button class="btn btn-primary" onclick="app.closeGuide()">Got it!</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- COPILOT CONFIRM MODAL -->
+    <div class="modal-overlay" id="copilot-modal">
+        <div class="modal-content" style="width: 500px;">
+            <div class="modal-header">
+                <h2><i class="fa-solid fa-robot" style="color: var(--accent); margin-right: 10px;"></i> Ready to generate?</h2>
+                <button class="modal-close" onclick="app.closeCopilotModal()"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 15px;">Before starting generation, please confirm the following points for an optimal experience:</p>
+                
+                <label class="checkbox-wrapper" style="margin-bottom: 10px;">
+                    <input type="checkbox" id="check-agent-mode" onchange="app.checkCopilotReady()">
+                    I have enabled Github Copilot Agent mode
+                </label>
+                
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="check-model-select" onchange="app.checkCopilotReady()">
+                    I have selected the model of my choice (Gemini 3 Pro recommended)
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" style="background: transparent; border: 1px solid var(--border-color); color: var(--text-muted);" onclick="app.closeCopilotModal()">Cancel</button>
+                <button class="btn btn-primary" id="btn-confirm-generate" onclick="app.confirmBuildWithCopilot()" disabled style="opacity: 0.5; cursor: not-allowed;">
+                    Generate App
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APPLICATION -->
+    <script>
+        const vscode = acquireVsCodeApi();
+
+        /**
+         * VIBECODER ARCHITECT CORE
+         * No frameworks, purely event-driven Vanilla JS architecture.
+         */
+        class ArchitectApp {
+            constructor() {
+                // State
+                this.nodes = [];
+                this.connections = [];
+                this.nextId = 1;
+                this.selectedNodeId = null;
+                this.isDrawing = false;
+                this.tempConnectionSource = null;
+                this.projectDescription = ""; // Global Project Context
+                
+                // DOM Elements
+                this.canvas = document.getElementById('canvas');
+                this.svgLayer = document.getElementById('connections-layer');
+                this.inspector = document.getElementById('inspector');
+                this.dataEditorContainer = document.getElementById('data-editor-tables');
+                this.routesEditorContainer = document.getElementById('routes-editor-container');
+                
+                // Initialize
+                this.bindEvents();
+                this.setupCanvasDrag();
+                this.checkGuidePreference();
+            }
+
+            bindEvents() {
+                // Global Project Description Listener
+                const globalDescInput = document.getElementById('global-desc');
+                globalDescInput.addEventListener('input', (e) => {
+                    this.projectDescription = e.target.value;
+                });
+
+                // Sidebar Drag & Drop
+                const tools = document.querySelectorAll('.tool-item');
+                tools.forEach(tool => {
+                    tool.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('type', tool.dataset.type);
+                    });
+                });
+
+                this.canvas.addEventListener('dragover', (e) => e.preventDefault());
+                
+                this.canvas.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const type = e.dataTransfer.getData('type');
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    this.createNode(type, x, y);
+                });
+
+                // Global Mouse Move (for dragging connection lines)
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isDrawing) {
+                        this.renderTempLine(e);
+                    }
+                });
+
+                // Stop drawing connection if clicked elsewhere
+                document.addEventListener('mouseup', () => {
+                    if (this.isDrawing) {
+                        this.cancelConnection();
+                    }
+                });
+
+                // Property Input Listeners (Text fields)
+                ['prop-name', 'prop-tech', 'prop-port', 'prop-desc'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', (e) => this.updateNodeDataFromForm());
+                });
+
+                // "Add Table" Button
+                document.getElementById('btn-add-table').addEventListener('click', () => {
+                    this.addTableBlock();
+                    this.updateNodeDataFromForm();
+                });
+
+                // "Add Route" Button
+                document.getElementById('btn-add-route').addEventListener('click', () => {
+                    this.addRouteBlock();
+                    this.updateNodeDataFromForm();
+                });
+            }
+
+            // --- MULTI-TABLE DATA EDITOR LOGIC ---
+
+            addTableBlock(tableData = { name: 'NewTable', fields: [] }) {
+                const tableBlock = document.createElement('div');
+                tableBlock.className = 'table-block';
+                
+                // 1. Create Header Row Container
+                const headerRow = document.createElement('div');
+                headerRow.className = 'table-header-row';
+
+                // 2. Create Name Input
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.className = 'table-name-input';
+                nameInput.value = tableData.name;
+                nameInput.placeholder = 'Table Name';
+                nameInput.addEventListener('input', () => this.updateNodeDataFromForm());
+
+                // 3. Create Delete Button (Using DOM API for robust listener)
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-icon btn-delete-table';
+                deleteBtn.title = 'Delete Table';
+                deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                
+                // FIX: Robust Delete Handler
+                deleteBtn.addEventListener('click', (e) => {
+                    e.preventDefault(); // Prevent any unexpected behavior
+                    // Removed confirm() to avoid webview blocking issues
+                    tableBlock.remove(); // Remove DOM element
+                    this.updateNodeDataFromForm(); // Update state
+                });
+
+                headerRow.appendChild(nameInput);
+                headerRow.appendChild(deleteBtn);
+
+                // 4. Create Fields Container
+                const fieldsContainer = document.createElement('div');
+                fieldsContainer.className = 'fields-container';
+
+                // Add existing fields if any
+                tableData.fields.forEach(field => {
+                    this.addFieldRowToContainer(fieldsContainer, field);
+                });
+
+                // 5. "Add Field" Button inside table
+                const btnAddField = document.createElement('button');
+                btnAddField.className = 'btn-small-add';
+                btnAddField.innerHTML = '<i class="fa-solid fa-plus"></i> Add Field';
+                btnAddField.addEventListener('click', () => {
+                    this.addFieldRowToContainer(fieldsContainer);
+                    this.updateNodeDataFromForm();
+                });
+
+                // Assemble Block
+                tableBlock.appendChild(headerRow);
+                tableBlock.appendChild(fieldsContainer);
+                tableBlock.appendChild(btnAddField);
+
+                this.dataEditorContainer.appendChild(tableBlock);
+            }
+
+            addFieldRowToContainer(container, fieldData = { name: '', type: 'string' }) {
+                const row = document.createElement('div');
+                row.className = 'data-field-row';
+                
+                // Using DOM API for consistency (and reliability)
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.className = 'data-field-name';
+                nameInput.value = fieldData.name;
+                nameInput.placeholder = 'Name (ex: id)';
+                nameInput.addEventListener('input', () => this.updateNodeDataFromForm());
+
+                const typeSelect = document.createElement('select');
+                typeSelect.className = 'data-field-type';
+                const types = [
+                    {v:'string', l:'String'}, {v:'number', l:'Number'}, {v:'boolean', l:'Bool'},
+                    {v:'array', l:'Array'}, {v:'object', l:'Obj'}, {v:'pk', l:'PK (ID)'},
+                    {v:'fk', l:'FK (Ref)'}, {v:'date', l:'Date'}
+                ];
+                types.forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t.v;
+                    opt.innerText = t.l;
+                    if(t.v === fieldData.type) opt.selected = true;
+                    typeSelect.appendChild(opt);
+                });
+                typeSelect.addEventListener('change', () => this.updateNodeDataFromForm());
+
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-icon btn-delete-field';
+                delBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
+                delBtn.addEventListener('click', () => {
+                    row.remove();
+                    this.updateNodeDataFromForm();
+                });
+
+                row.appendChild(nameInput);
+                row.appendChild(typeSelect);
+                row.appendChild(delBtn);
+
+                container.appendChild(row);
+            }
+
+            renderDataEditor(tables) {
+                this.dataEditorContainer.innerHTML = '';
+                if (!tables || tables.length === 0) return;
+                
+                tables.forEach(table => {
+                    this.addTableBlock(table);
+                });
+            }
+            
+            getDataTablesFromEditor() {
+                const tables = [];
+                const tableBlocks = this.dataEditorContainer.querySelectorAll('.table-block');
+                
+                tableBlocks.forEach(block => {
+                    const tableName = block.querySelector('.table-name-input').value.trim();
+                    
+                    const fields = [];
+                    const fieldRows = block.querySelectorAll('.data-field-row');
+                    fieldRows.forEach(row => {
+                        const fName = row.querySelector('.data-field-name').value.trim();
+                        const fType = row.querySelector('.data-field-type').value;
+                        if (fName) fields.push({ name: fName, type: fType });
+                    });
+
+                    if (tableName) {
+                        tables.push({ name: tableName, fields: fields });
+                    }
+                });
+                return tables;
+            }
+
+            // --- ROUTES EDITOR LOGIC ---
+
+            addRouteBlock(routeData = { method: 'GET', path: '/api/endpoint', description: '' }) {
+                const routeBlock = document.createElement('div');
+                routeBlock.className = 'route-block';
+                
+                // 1. Header Row (Method + Path + Delete)
+                const headerRow = document.createElement('div');
+                headerRow.className = 'route-header-row';
+
+                // Method Select
+                const methodSelect = document.createElement('select');
+                methodSelect.className = 'route-method-select';
+                const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'CRUD'];
+                methods.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.innerText = m;
+                    if (m === routeData.method) opt.selected = true;
+                    methodSelect.appendChild(opt);
+                });
+                methodSelect.addEventListener('change', () => this.updateNodeDataFromForm());
+
+                // Path Input
+                const pathInput = document.createElement('input');
+                pathInput.type = 'text';
+                pathInput.className = 'route-path-input';
+                pathInput.value = routeData.path;
+                pathInput.placeholder = '/api/resource';
+                pathInput.addEventListener('input', () => this.updateNodeDataFromForm());
+
+                // Delete Button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn-icon btn-delete-route';
+                deleteBtn.title = 'Delete Route';
+                deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+                deleteBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    // Removed confirm() to avoid webview blocking issues
+                    routeBlock.remove();
+                    this.updateNodeDataFromForm();
+                });
+
+                headerRow.appendChild(methodSelect);
+                headerRow.appendChild(pathInput);
+                headerRow.appendChild(deleteBtn);
+
+                // 2. Description Input
+                const descInput = document.createElement('textarea');
+                descInput.className = 'route-desc-input';
+                descInput.value = routeData.description;
+                descInput.placeholder = 'Endpoint description (ex: Retrieves user list)';
+                descInput.addEventListener('input', () => this.updateNodeDataFromForm());
+
+                // Assemble Block
+                routeBlock.appendChild(headerRow);
+                routeBlock.appendChild(descInput);
+
+                this.routesEditorContainer.appendChild(routeBlock);
+            }
+
+            renderRoutesEditor(routes) {
+                this.routesEditorContainer.innerHTML = '';
+                if (!routes || routes.length === 0) return;
+                
+                routes.forEach(route => {
+                    this.addRouteBlock(route);
+                });
+            }
+
+            getRoutesFromEditor() {
+                const routes = [];
+                const routeBlocks = this.routesEditorContainer.querySelectorAll('.route-block');
+                
+                routeBlocks.forEach(block => {
+                    const method = block.querySelector('.route-method-select').value;
+                    const path = block.querySelector('.route-path-input').value.trim();
+                    const description = block.querySelector('.route-desc-input').value.trim();
+                    
+                    if (path) {
+                        routes.push({ method, path, description });
+                    }
+                });
+                return routes;
+            }
+
+            // --- NODE LOGIC ---
+
+            createNode(type, x, y) {
+                const id = `node-${this.nextId++}`;
+                const defaults = this.getNodeDefaults(type);
+                
+                const nodeData = {
+                    id,
+                    x: x - 120, 
+                    y: y - 30,
+                    type,
+                    name: defaults.name,
+                    tech: defaults.tech,
+                    port: defaults.port,
+                    desc: '',
+                    // Now an array of Table objects: [{ name: 'Users', fields: [...] }]
+                    dataModels: defaults.dataModels || [],
+                    // Routes/Endpoints array: [{ method: 'GET', path: '/api/users', description: '...' }]
+                    routes: defaults.routes || []
+                };
+
+                this.nodes.push(nodeData);
+                this.renderNode(nodeData);
+                this.selectNode(id);
+            }
+
+            getNodeDefaults(type) {
+                switch(type) {
+                    case 'frontend': return { 
+                        name: 'WebApp', 
+                        tech: 'React/Vite', 
+                        port: 3000,
+                        routes: [
+                            { method: 'GET', path: '/', description: 'Home Page' },
+                            { method: 'GET', path: '/dashboard', description: 'Dashboard' }
+                        ]
+                    };
+                    case 'backend': return { 
+                        name: 'Backend', 
+                        tech: 'Node.js/Express', 
+                        port: 8080,
+                        routes: [
+                            { method: 'GET', path: '/api/health', description: 'Health check' },
+                            { method: 'GET', path: '/api/users', description: 'User List' },
+                            { method: 'POST', path: '/api/users', description: 'Create User' }
+                        ]
+                    };
+                    case 'database': return { 
+                        name: 'Main DB', 
+                        tech: 'PostgreSQL', 
+                        port: 5432,
+                        dataModels: [
+                            { 
+                                name: 'Users', 
+                                fields: [{ name: 'id', type: 'pk' }, { name: 'email', type: 'string' }] 
+                            }
+                        ]
+                    };
+                    case 'cloud': return { name: 'Redis', tech: 'Cache', port: 6379 };
+                    default: return { name: 'Service', tech: 'Generic', port: 80 };
+                }
+            }
+
+            renderNode(data) {
+                const el = document.createElement('div');
+                el.className = 'node';
+                el.id = data.id;
+                el.style.left = `${data.x}px`;
+                el.style.top = `${data.y}px`;
+                
+                let icon = 'fa-cube';
+                if (data.type === 'frontend') icon = 'fa-laptop-code';
+                if (data.type === 'backend') icon = 'fa-server';
+                if (data.type === 'database') icon = 'fa-database';
+                if (data.type === 'cloud') icon = 'fa-cloud';
+
+                // Count total tables/models
+                const tableCount = data.dataModels ? data.dataModels.length : 0;
+                const tableText = tableCount > 0 ? `${tableCount} Table${tableCount > 1 ? 's' : ''}` : '';
+
+                // Count total routes
+                const routeCount = data.routes ? data.routes.length : 0;
+                const routeText = routeCount > 0 ? `${routeCount} Route${routeCount > 1 ? 's' : ''}` : '';
+
+                el.innerHTML = `
+                    <div class="node-header">
+                        <i class="fa-solid ${icon}"></i> 
+                        <span class="node-title-text">${data.name}</span>
+                    </div>
+                    <div class="node-content">
+                        <div class="node-meta">
+                            <span class="node-tech">${data.tech}</span>
+                            <span class="node-port">:${data.port}</span>
+                        </div>
+                        <div class="node-desc-preview" style="font-size:0.8em; opacity:0.7;"></div>
+                        
+                        ${tableText ? `
+                        <div class="node-data-preview" style="font-size:0.75em; color:var(--text-muted); margin-top:4px;">
+                            <i class="fa-solid fa-table"></i> 
+                            <span class="data-count">${tableText}</span>
+                        </div>` : ''}
+                        
+                        ${routeText ? `
+                        <div class="node-routes-preview" style="font-size:0.75em; color:var(--text-muted); margin-top:4px;">
+                            <i class="fa-solid fa-route"></i> 
+                            <span class="routes-count">${routeText}</span>
+                        </div>` : ''}
+                    </div>
+                    <div class="port input" title="Input"></div>
+                    <div class="port output" title="Output"></div>
+                `;
+
+                const header = el.querySelector('.node-header');
+                let isDragging = false;
+                let startX, startY, initialLeft, initialTop;
+
+                header.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    startX = e.clientX;
+                    startY = e.clientY;
+                    initialLeft = parseInt(el.style.left || 0);
+                    initialTop = parseInt(el.style.top || 0);
+                    this.selectNode(data.id);
+                    e.stopPropagation(); 
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+                    data.x = initialLeft + dx;
+                    data.y = initialTop + dy;
+                    el.style.left = `${data.x}px`;
+                    el.style.top = `${data.y}px`;
+                    this.updateConnections();
+                });
+
+                window.addEventListener('mouseup', () => { isDragging = false; });
+
+                const outPort = el.querySelector('.output');
+                const inPort = el.querySelector('.input');
+
+                outPort.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    this.startConnection(data.id, e);
+                });
+
+                inPort.addEventListener('mouseup', (e) => {
+                    e.stopPropagation();
+                    this.completeConnection(data.id);
+                });
+
+                el.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.selectNode(data.id);
+                });
+
+                this.canvas.appendChild(el);
+            }
+
+            // --- SELECTION & EDITING ---
+
+            selectNode(id) {
+                this.selectedNodeId = id;
+                document.querySelectorAll('.node').forEach(n => n.classList.remove('selected'));
+                const el = document.getElementById(id);
+                if(el) el.classList.add('selected');
+
+                const node = this.nodes.find(n => n.id === id);
+                if (node) {
+                    this.inspector.classList.add('active');
+                    document.getElementById('prop-name').value = node.name;
+                    document.getElementById('prop-tech').value = node.tech;
+                    document.getElementById('prop-port').value = node.port || '';
+                    document.getElementById('prop-desc').value = node.desc || '';
+                    
+                    // Render Multi-table editor
+                    this.renderDataEditor(node.dataModels);
+                    
+                    // Render Routes editor
+                    this.renderRoutesEditor(node.routes);
+                }
+            }
+
+            updateNodeDataFromForm() {
+                if (!this.selectedNodeId) return;
+                
+                const node = this.nodes.find(n => n.id === this.selectedNodeId);
+                node.name = document.getElementById('prop-name').value;
+                node.tech = document.getElementById('prop-tech').value;
+                node.port = document.getElementById('prop-port').value;
+                node.desc = document.getElementById('prop-desc').value;
+                
+                // Get data from graphical editor
+                node.dataModels = this.getDataTablesFromEditor();
+                
+                // Get routes from graphical editor
+                node.routes = this.getRoutesFromEditor();
+
+                // Update DOM
+                const el = document.getElementById(node.id);
+                el.querySelector('.node-title-text').innerText = node.name;
+                el.querySelector('.node-tech').innerText = node.tech;
+                el.querySelector('.node-port').innerText = node.port ? `:${node.port}` : '';
+                
+                // Update count displays
+                const tableCount = node.dataModels.length;
+                const routeCount = node.routes.length;
+                
+                // If counts changed, re-render the node to update displays
+                const currentDataCount = el.querySelector('.data-count');
+                const currentRouteCount = el.querySelector('.routes-count');
+                
+                const needsRerender = 
+                    (tableCount > 0 && !currentDataCount) || 
+                    (tableCount === 0 && currentDataCount) ||
+                    (routeCount > 0 && !currentRouteCount) || 
+                    (routeCount === 0 && currentRouteCount);
+                
+                if (needsRerender) {
+                    el.remove();
+                    this.renderNode(node);
+                    document.getElementById(node.id).classList.add('selected');
+                } else {
+                    // Just update counts
+                    if (currentDataCount) {
+                        currentDataCount.innerText = `${tableCount} Table${tableCount > 1 ? 's' : ''}`;
+                    }
+                    if (currentRouteCount) {
+                        currentRouteCount.innerText = `${routeCount} Route${routeCount > 1 ? 's' : ''}`;
+                    }
+                }
+            }
+
+            deleteSelectedNode() {
+                if (!this.selectedNodeId) return;
+                this.connections = this.connections.filter(c => c.from !== this.selectedNodeId && c.to !== this.selectedNodeId);
+                this.nodes = this.nodes.filter(n => n.id !== this.selectedNodeId);
+                document.getElementById(this.selectedNodeId).remove();
+                this.inspector.classList.remove('active');
+                this.selectedNodeId = null;
+                this.updateConnections(); 
+            }
+
+            // --- CONNECTION LOGIC ---
+
+            startConnection(nodeId, e) {
+                this.isDrawing = true;
+                this.tempConnectionSource = nodeId;
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("class", "connection temp");
+                path.setAttribute("id", "temp-line");
+                path.style.opacity = "0.5";
+                this.svgLayer.appendChild(path);
+            }
+
+            renderTempLine(e) {
+                const sourceNode = this.nodes.find(n => n.id === this.tempConnectionSource);
+                if (!sourceNode) return;
+                const startX = sourceNode.x + 240; 
+                const startY = sourceNode.y + 26;  
+                const rect = this.canvas.getBoundingClientRect();
+                const endX = e.clientX - rect.left;
+                const endY = e.clientY - rect.top;
+                const d = this.calculateBezier(startX, startY, endX, endY);
+                document.getElementById('temp-line').setAttribute('d', d);
+            }
+
+            completeConnection(targetId) {
+                if (!this.isDrawing) return;
+                if (this.tempConnectionSource === targetId) {
+                    this.cancelConnection(); 
+                    return;
+                }
+                this.connections.push({
+                    id: `conn-${Date.now()}`,
+                    from: this.tempConnectionSource,
+                    to: targetId
+                });
+                this.cancelConnection(); 
+                this.updateConnections(); 
+            }
+
+            cancelConnection() {
+                this.isDrawing = false;
+                this.tempConnectionSource = null;
+                const temp = document.getElementById('temp-line');
+                if (temp) temp.remove();
+            }
+
+            updateConnections() {
+                this.svgLayer.innerHTML = '';
+                this.connections.forEach(conn => {
+                    const source = this.nodes.find(n => n.id === conn.from);
+                    const target = this.nodes.find(n => n.id === conn.to);
+                    if (!source || !target) return;
+                    const startX = source.x + 240; 
+                    const startY = source.y + 26;
+                    const endX = target.x;
+                    const endY = target.y + 26;
+                    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                    path.setAttribute("class", "connection");
+                    path.setAttribute("d", this.calculateBezier(startX, startY, endX, endY));
+                    path.addEventListener('click', (e) => {
+                        if(confirm('Delete this connection?')) {
+                            this.connections = this.connections.filter(c => c.id !== conn.id);
+                            this.updateConnections();
+                        }
+                    });
+                    this.svgLayer.appendChild(path);
+                });
+            }
+
+            calculateBezier(x1, y1, x2, y2) {
+                const dist = Math.abs(x2 - x1) * 0.5;
+                return `M ${x1} ${y1} C ${x1 + dist} ${y1}, ${x2 - dist} ${y2}, ${x2} ${y2}`;
+            }
+
+            setupCanvasDrag() { /* Placeholder for panning */ }
+
+            // --- GUIDE MODAL LOGIC ---
+
+            openGuide() {
+                document.getElementById('guide-modal').classList.add('active');
+            }
+
+            closeGuide() {
+                const dontShow = document.getElementById('dont-show-guide').checked;
+                if (dontShow) {
+                    localStorage.setItem('vibe-architect-guide-seen', 'true');
+                }
+                document.getElementById('guide-modal').classList.remove('active');
+            }
+
+            checkGuidePreference() {
+                const seen = localStorage.getItem('vibe-architect-guide-seen');
+                if (!seen) {
+                    this.openGuide();
+                }
+            }
+
+            // --- COPILOT MODAL LOGIC ---
+
+            openCopilotModal() {
+                document.getElementById('copilot-modal').classList.add('active');
+                // Reset state
+                document.getElementById('check-agent-mode').checked = false;
+                document.getElementById('check-model-select').checked = false;
+                this.checkCopilotReady();
+            }
+
+            closeCopilotModal() {
+                document.getElementById('copilot-modal').classList.remove('active');
+            }
+
+            checkCopilotReady() {
+                const check1 = document.getElementById('check-agent-mode').checked;
+                const check2 = document.getElementById('check-model-select').checked;
+                const btn = document.getElementById('btn-confirm-generate');
+                
+                if (check1 && check2) {
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                } else {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                    btn.style.cursor = 'not-allowed';
+                }
+            }
+
+            async confirmBuildWithCopilot() {
+                this.closeCopilotModal();
+                await this.exportToMarkdown();
+                
+                // Send command to open Copilot
+                vscode.postMessage({
+                    command: 'openCopilot',
+                    query: 'Build the app'
+                });
+            }
+
+            buildWithCopilot() {
+                this.openCopilotModal();
+            }
+
+            // --- EXPORT LOGIC ---
+
+            async exportToMarkdown() {
+                if (this.nodes.length === 0) {
+                    alert("Add nodes before exporting.");
+                    return;
+                }
+
+                // Get selected style
+                const selectedStyleInput = document.querySelector('input[name="project-style"]:checked');
+                const styleName = selectedStyleInput ? selectedStyleInput.nextElementSibling.innerText : 'Not specified';
+                const styleDesc = selectedStyleInput ? selectedStyleInput.parentElement.getAttribute('title') : '';
+
+                let md = `# SYSTEM ARCHITECTURE SPECIFICATION\n`;
+
+                if (this.projectDescription) {
+                    md += `> **Project Context / Goal:**\n`;
+                    md += `> ${this.projectDescription}\n\n`;
+                }
+
+                if (styleName) {
+                    md += `> **Visual Style:** ${styleName}\n`;
+                    if (styleDesc) md += `> *${styleDesc}*\n\n`;
+                }
+                
+                md += `## 1. ARCHITECTURE OVERVIEW\n\n`;
+                this.nodes.forEach(node => {
+                    md += `### [${node.name}]\n`;
+                    md += `- **Type:** ${node.type}\n`;
+                    md += `- **Technology:** ${node.tech}\n`;
+                    md += `- **Port:** ${node.port || 'N/A'}\n`;
+                    if (node.desc) md += `- **Description:** ${node.desc}\n`;
+                    
+                    // ROUTES/ENDPOINTS EXPORT
+                    if (node.routes && node.routes.length > 0) {
+                        md += `- **API Routes / Endpoints:**\n`;
+                        node.routes.forEach(route => {
+                            md += `  - **${route.method}** \`${route.path}\``;
+                            if (route.description) {
+                                md += ` - ${route.description}`;
+                            }
+                            md += `\n`;
+                        });
+                    }
+                    
+                    // DATA MODELS EXPORT
+                    if (node.dataModels && node.dataModels.length > 0) {
+                        md += `- **Data Models / Schema:**\n`;
+                        node.dataModels.forEach(table => {
+                            if (table.fields && table.fields.length > 0) {
+                                md += `  - **Table/Model: ${table.name}**\n`;
+                                table.fields.forEach(field => {
+                                    md += `    - \`${field.name}\` : ${field.type}\n`;
+                                });
+                            }
+                            md += `\n`;
+                        });
+                    }
+                });
+
+                md += `## 2. DATA FLOW & CONNECTIONS\n\n`;
+                if (this.connections.length === 0) md += `_No explicit connections defined, try to guess them given the architecture._\n`;
+                
+                this.connections.forEach(conn => {
+                    const src = this.nodes.find(n => n.id === conn.from);
+                    const tgt = this.nodes.find(n => n.id === conn.to);
+                    md += `- **${src.name}** (:${src.port}) sends data to **${tgt.name}** (:${tgt.port})\n`;
+                });
+
+                md += `\n## 3. INSTRUCTIONS\n`;
+                md += `Act as a Senior Software Architect. Based on the structure above, please generate:\n`;
+                md += `1. The project file structure.\n`;
+                md += `2. The necessary configuration files (Language/framework related configuration files (like package.json, composer.json, pom.xml...), Dockerfile(s), docker-compose.yml).\n`;
+                md += `   *Please ensure docker-compose ports match the specified ports above.*\n`;
+                md += `3. The complete, production-ready source code for all components. **STRICTLY FORBIDDEN:** usage of comments like \`// TODO\`, \`// Mock\`, \`// Implement later\`, or placeholder logic. You must implement FULL logic for every function. Authentication must be real (JWT/Session with DB check), database connections must be real (no in-memory arrays), and error handling must be implemented. The entire procedure will fail if any part is missing or incomplete.\n`;
+                md += `4. **IMPORTANT:** Generate the specific SQL schemas as defined in the Data Models section above.\n`;
+                md += `5. **IMPORTANT:** Implement the API routes/endpoints exactly as specified above, with proper request/response handling.\n`;
+                md += `Then, explain what the steps a developer should take next to start the development process based on this architecture.\n`;
+
+                // Send to VS Code Extension
+                vscode.postMessage({
+                    command: 'saveFile',
+                    text: md,
+                    filename: 'copilot-instructions.md'
+                });
+
+                const toast = document.getElementById('toast');
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 2000);
+            }
+        }
+
+        const app = new ArchitectApp();
+    </script>
+</body>
+</html>

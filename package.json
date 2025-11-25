@@ -1,0 +1,49 @@
+{
+  "name": "vibe-architect-vscode",
+  "displayName": "Vibe Architect",
+  "icon": "logo.png",
+  "publisher": "luky9",
+  "description": "Visual Software Architecture Designer for AI Agents",
+  "keywords": [
+    "architecture",
+    "diagram",
+    "ai",
+    "copilot",
+    "prompt-engineering",
+    "visualizer",
+    "design"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lukyyy9/vibe-architect-vscode"
+  },
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Visualization",
+    "AI"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "vibe-architect.open",
+        "title": "Open",
+        "category": "Vibe Architect"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "18.x",
+    "typescript": "^5.1.3"
+  }
+}

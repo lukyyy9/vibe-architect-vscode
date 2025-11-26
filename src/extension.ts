@@ -38,6 +38,9 @@ export function activate(context: vscode.ExtensionContext) {
         currentPanel.webview.onDidReceiveMessage(
             async message => {
                 switch (message.command) {
+                    case 'ready':
+                        await loadAndSendState(currentPanel, context);
+                        return;
                     case 'saveFile':
                         await saveFile(message.filename, message.text);
                         return;
@@ -50,6 +53,25 @@ export function activate(context: vscode.ExtensionContext) {
             context.subscriptions
         );
 
+        // Watch for changes in copilot-instructions.md
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            const instructionsPath = path.join(workspaceFolder, '.github', 'copilot-instructions.md');
+            
+            const watcher = vscode.workspace.createFileSystemWatcher(instructionsPath);
+            watcher.onDidChange(async () => {
+                if (currentPanel) {
+                    await loadAndSendState(currentPanel, context);
+                }
+            });
+            watcher.onDidCreate(async () => {
+                if (currentPanel) {
+                    await loadAndSendState(currentPanel, context);
+                }
+            });
+            context.subscriptions.push(watcher);
+        }
+
         currentPanel.onDidDispose(
             () => {
                 currentPanel = undefined;
@@ -60,6 +82,23 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     context.subscriptions.push(disposable);
+}
+
+async function loadAndSendState(panel: vscode.WebviewPanel | undefined, context: vscode.ExtensionContext) {
+    if (!panel) return;
+    
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+        const workspaceFolder = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        const instructionsPath = path.join(workspaceFolder, '.github', 'copilot-instructions.md');
+        
+        if (fs.existsSync(instructionsPath)) {
+            const content = fs.readFileSync(instructionsPath, 'utf8');
+            panel.webview.postMessage({
+                command: 'loadState',
+                text: content
+            });
+        }
+    }
 }
 
 function getWebviewContent(webview: vscode.Webview, extensionPath: string): string {

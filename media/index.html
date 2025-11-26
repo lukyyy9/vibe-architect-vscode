@@ -828,9 +828,22 @@
                 this.bindEvents();
                 this.setupCanvasDrag();
                 this.checkGuidePreference();
+                
+                // Signal ready to extension
+                vscode.postMessage({ command: 'ready' });
             }
 
             bindEvents() {
+                // Handle messages from extension
+                window.addEventListener('message', event => {
+                    const message = event.data;
+                    switch (message.command) {
+                        case 'loadState':
+                            this.importFromMarkdown(message.text);
+                            break;
+                    }
+                });
+
                 // Global Project Description Listener
                 const globalDescInput = document.getElementById('global-desc');
                 globalDescInput.addEventListener('input', (e) => {
@@ -1582,6 +1595,123 @@
                 const toast = document.getElementById('toast');
                 toast.classList.add('show');
                 setTimeout(() => toast.classList.remove('show'), 2000);
+            }
+
+            renderNodes() {
+                this.canvas.querySelectorAll('.node').forEach(n => n.remove());
+                this.nodes.forEach(node => this.renderNode(node));
+            }
+
+            importFromMarkdown(md) {
+                if (!md) return;
+
+                // Reset state
+                this.nodes = [];
+                this.connections = [];
+                this.nextId = 1;
+
+                // 1. Extract Project Context
+                const contextMatch = md.match(/> \*\*Project Context \/ Goal:\*\*\n> ([\s\S]*?)\n\n/);
+                if (contextMatch) {
+                    this.projectDescription = contextMatch[1].trim();
+                    const globalDescInput = document.getElementById('global-desc');
+                    if (globalDescInput) globalDescInput.value = this.projectDescription;
+                }
+
+                // 2. Extract Nodes (Architecture Overview)
+                const overviewSection = md.split('## 1. ARCHITECTURE OVERVIEW')[1]?.split('## 2.')[0];
+                
+                if (overviewSection) {
+                    const nodeBlocks = overviewSection.split('### [');
+                    // First block is empty or contains text before first node
+                    for (let i = 1; i < nodeBlocks.length; i++) {
+                        const block = nodeBlocks[i];
+                        const name = block.split(']')[0];
+                        const content = block.substring(name.length + 1);
+                        
+                        const typeMatch = content.match(/- \*\*Type:\*\* (.*)/);
+                        const techMatch = content.match(/- \*\*Technology:\*\* (.*)/);
+                        const portMatch = content.match(/- \*\*Port:\*\* (.*)/);
+                        const descMatch = content.match(/- \*\*Description:\*\* (.*)/);
+
+                        const node = {
+                            id: `node-${this.nextId++}`,
+                            x: 100 + (i * 50), // Simple auto-layout
+                            y: 100 + (i * 50),
+                            name: name,
+                            type: typeMatch ? typeMatch[1].trim() : 'service',
+                            tech: techMatch ? techMatch[1].trim() : '',
+                            port: portMatch && portMatch[1] !== 'N/A' ? portMatch[1].trim() : '',
+                            desc: descMatch ? descMatch[1].trim() : '',
+                            routes: [],
+                            dataModels: []
+                        };
+
+                        // Parse Routes
+                        if (content.includes('- **API Routes / Endpoints:**')) {
+                            const routesBlock = content.split('- **API Routes / Endpoints:**')[1].split('- **Data Models')[0];
+                            const routeLines = routesBlock.split('\n');
+                            routeLines.forEach(line => {
+                                const routeMatch = line.match(/- \*\*(.*)\*\* `(.*)`(?: - (.*))?/);
+                                if (routeMatch) {
+                                    node.routes.push({
+                                        method: routeMatch[1],
+                                        path: routeMatch[2],
+                                        description: routeMatch[3] || ''
+                                    });
+                                }
+                            });
+                        }
+
+                        // Parse Data Models
+                        if (content.includes('- **Data Models / Schema:**')) {
+                            const modelsBlock = content.split('- **Data Models / Schema:**')[1];
+                            const tableBlocks = modelsBlock.split('  - **Table/Model: ');
+                            for (let j = 1; j < tableBlocks.length; j++) {
+                                const tBlock = tableBlocks[j];
+                                const tName = tBlock.split('**')[0];
+                                const tFields = [];
+                                const fieldLines = tBlock.split('\n');
+                                fieldLines.forEach(fLine => {
+                                    const fMatch = fLine.match(/    - `(.*)` : (.*)/);
+                                    if (fMatch) {
+                                        tFields.push({ name: fMatch[1], type: fMatch[2] });
+                                    }
+                                });
+                                node.dataModels.push({ name: tName, fields: tFields });
+                            }
+                        }
+
+                        this.nodes.push(node);
+                    }
+                }
+
+                // 3. Extract Connections
+                const connectionsSection = md.split('## 2. DATA FLOW & CONNECTIONS')[1]?.split('## 3.')[0];
+                if (connectionsSection) {
+                    const connLines = connectionsSection.split('\n');
+                    connLines.forEach(line => {
+                        const connMatch = line.match(/- \*\*(.*)\*\* \(:(.*)\) sends data to \*\*(.*)\*\* \(:(.*)\)/);
+                        if (connMatch) {
+                            const srcName = connMatch[1];
+                            const tgtName = connMatch[3];
+                            const srcNode = this.nodes.find(n => n.name === srcName);
+                            const tgtNode = this.nodes.find(n => n.name === tgtName);
+                            
+                            if (srcNode && tgtNode) {
+                                this.connections.push({
+                                    id: `conn-${Date.now()}-${Math.random()}`,
+                                    from: srcNode.id,
+                                    to: tgtNode.id
+                                });
+                            }
+                        }
+                    });
+                }
+
+                // Re-render
+                this.renderNodes();
+                this.updateConnections();
             }
         }
 

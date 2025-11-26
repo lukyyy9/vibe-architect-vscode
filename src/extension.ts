@@ -118,7 +118,7 @@ function getWebviewContent(webview: vscode.Webview, extensionPath: string): stri
 
 async function handleAskCopilot(userPrompt: string) {
     const systemInstructions = `
-You are Vibe Architect's automated assistant. Your goal is to update the \`copilot-instructions.md\` file based on the user's request.
+You are Vibe Architect's automated assistant. Your goal is to update (or create if not exists) in the filesystem the \`copilot-instructions.md\` file based on the user's request.
 
 **CRITICAL:** The file is parsed by a strict regex engine. You MUST NOT deviate from the following format structure.
 

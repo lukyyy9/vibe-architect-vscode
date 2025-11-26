@@ -1625,6 +1625,10 @@
             importFromMarkdown(md) {
                 if (!md) return;
 
+                // Normalize headers: ensure "### ComponentName" becomes "### [ComponentName]"
+                // This fixes issues where the parser expects brackets but the AI/User didn't provide them.
+                md = md.replace(/^###\s+(?!\[)(.*?)\s*$/gm, '### [$1]');
+
                 // Reset state
                 this.nodes = [];
                 this.connections = [];

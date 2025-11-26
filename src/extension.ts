@@ -118,78 +118,40 @@ function getWebviewContent(webview: vscode.Webview, extensionPath: string): stri
 
 async function handleAskCopilot(userPrompt: string) {
     const systemInstructions = `
-You are an AI assistant helping to modify a software architecture document.
-The user wants to update the \`copilot-instructions.md\` file.
+You are Vibe Architect's automated assistant. Your goal is to update the \`copilot-instructions.md\` file based on the user's request.
 
-**CRITICAL: You MUST preserve the existing Markdown structure exactly so it can be parsed programmatically.**
+**CRITICAL:** The file is parsed by a strict regex engine. You MUST NOT deviate from the following format structure.
 
-**Structure Rules:**
-1.  **Sections:** Keep \`## 1. ARCHITECTURE OVERVIEW\` and \`## 2. DATA FLOW & CONNECTIONS\`.
-2.  **Nodes:** Use \`### [Name]\` for each component.
-3.  **Properties:** Use \`- **Key:** Value\` (Keys: Type (frontend,backend,database,cloud,custom), Technology, Port, Description).
-4.  **Routes:** Must be listed under \`- **API Routes / Endpoints:**\`.
-    *   Format: \`  - **METHOD(GET,POST,PUT,PATCH,DELETE,CRUD)** \`/path\` - Description\`
-5.  **Data Models:** Must be listed under \`- **Data Models / Schema:**\`.
-    *   Table Format: \`  - **Table/Model: Name**\`
-    *   Field Format: \`    - \`fieldName\` : type(string,number,boolean,array,object,pk,fk,date)\`
-6.  **Connections:** Must be listed under \`## 2. DATA FLOW & CONNECTIONS\`.
-    *   Format: \`- **Source** (:Port) sends data to **Target** (:Port)\`
-
-If the file is empty or does not exist, create it with the following example structure in mind, without changing the LLM instructions, and only modifying the actual architecture-related and app-related data : [
-
+### Required Format Structure
+\`\`\`markdown
 # SYSTEM ARCHITECTURE SPECIFICATION
 > **Project Context / Goal:**
-> Students meeting app
-
-> **Visual Style:** Futuristic Glassmorphism
-> *Dark Mode app interface using 'Glassmorphism' style. Translucent cards and panels with background blur effect. Very dark background. Modern bright white typography. Diffuse glow effect around interactive elements. Frosted texture, premium and technological look. Dribbble top trend style render. Use clean font-awesome icons.*
+> [Context here]
 
 ## 1. ARCHITECTURE OVERVIEW
 
-### [WebApp]
-- **Type:** frontend
-- **Technology:** React/Vite
-- **Port:** 3000
+### [ComponentName]
+- **Type:** [frontend|backend|database|cloud|custom]
+- **Technology:** [Tech Stack]
+- **Port:** [Number]
+- **Description:** [Optional description]
 - **API Routes / Endpoints:**
-  - **GET** \`/\` - Home Page
-  - **GET** \`/dashboard\` - Dashboard
-### [Backend]
-- **Type:** backend
-- **Technology:** Node.js/Express
-- **Port:** 8080
-- **API Routes / Endpoints:**
-  - **GET** \`/api/health\` - Health check
-  - **CRUD** \`/api/users\` - User List
-### [Main DB]
-- **Type:** database
-- **Technology:** PostgreSQL
-- **Port:** 5432
+  - **[METHOD(GET|POST|PUT|PATCH|DELETE|CRUD)]** \`/path\` - [Description]
 - **Data Models / Schema:**
-  - **Table/Model: Users**
-    - \`id\` : pk
-    - \`email\` : string
+  - **Table/Model: [Name]**
+    - \`[fieldName]\` : [type(string|number|boolean|array|object|pk|fk|date)]
 
 ## 2. DATA FLOW & CONNECTIONS
-
-- **WebApp** (:3000) sends data to **Backend** (:8080)
-- **Backend** (:8080) sends data to **Main DB** (:5432)
-
-## 3. INSTRUCTIONS
-Act as a Senior Software Architect. Based on the structure above, please generate:
-1. The project file structure.
-2. The necessary configuration files (Language/framework related configuration files (like package.json, composer.json, pom.xml...), Dockerfile(s), docker-compose.yml).
-   *Please ensure docker-compose ports match the specified ports above.*
-3. The complete, production-ready source code for all components. **STRICTLY FORBIDDEN:** usage of comments like \`// TODO\`, \`// Mock\`, \`// Implement later\`, or placeholder logic. You must implement FULL logic for every function. Authentication must be real (JWT/Session with DB check), database connections must be real (no in-memory arrays), and error handling must be implemented. The entire procedure will fail if any part is missing or incomplete.
-4. **IMPORTANT:** Generate the specific SQL schemas as defined in the Data Models section above.
-5. **IMPORTANT:** Implement the API routes/endpoints exactly as specified above, with proper request/response handling.
-Then, explain what the steps a developer should take next to start the development process based on this architecture.
-]
+- **[SourceNode]** (:[SourcePort]) sends data to **[TargetNode]** (:[TargetPort])
+\`\`\`
 
 **User Request:**
 ${userPrompt}
 
-**Action:**
-Update the \`copilot-instructions.md\` file in the workspace to reflect the user's request while strictly adhering to the structure above.
+**Instructions:**
+1. Modify the architecture to satisfy the request.
+2. Ensure all new components follow the format above exactly.
+3. Do not add conversational text, just output the updated Markdown content.
 `;
 
     await vscode.commands.executeCommand('workbench.action.chat.open', { query: systemInstructions });

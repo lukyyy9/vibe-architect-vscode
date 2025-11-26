@@ -47,6 +47,9 @@ export function activate(context: vscode.ExtensionContext) {
                     case 'openCopilot':
                         await vscode.commands.executeCommand('workbench.action.chat.open', { query: message.query });
                         return;
+                    case 'askCopilot':
+                        await handleAskCopilot(message.prompt);
+                        return;
                 }
             },
             undefined,
@@ -111,6 +114,35 @@ function getWebviewContent(webview: vscode.Webview, extensionPath: string): stri
     // However, we might want to ensure CSP is correct if we were stricter.
     
     return htmlContent;
+}
+
+async function handleAskCopilot(userPrompt: string) {
+    const systemInstructions = `
+You are an AI assistant helping to modify a software architecture document.
+The user wants to update the \`copilot-instructions.md\` file.
+
+**CRITICAL: You MUST preserve the existing Markdown structure exactly so it can be parsed programmatically.**
+
+**Structure Rules:**
+1.  **Sections:** Keep \`## 1. ARCHITECTURE OVERVIEW\` and \`## 2. DATA FLOW & CONNECTIONS\`.
+2.  **Nodes:** Use \`### [Name]\` for each component.
+3.  **Properties:** Use \`- **Key:** Value\` (Keys: Type, Technology, Port, Description).
+4.  **Routes:** Must be listed under \`- **API Routes / Endpoints:**\`.
+    *   Format: \`  - **METHOD** \`/path\` - Description\`
+5.  **Data Models:** Must be listed under \`- **Data Models / Schema:**\`.
+    *   Table Format: \`  - **Table/Model: Name**\`
+    *   Field Format: \`    - \`fieldName\` : type\`
+6.  **Connections:** Must be listed under \`## 2. DATA FLOW & CONNECTIONS\`.
+    *   Format: \`- **Source** (:Port) sends data to **Target** (:Port)\`
+
+**User Request:**
+${userPrompt}
+
+**Action:**
+Update the \`copilot-instructions.md\` file in the workspace to reflect the user's request while strictly adhering to the structure above.
+`;
+
+    await vscode.commands.executeCommand('workbench.action.chat.open', { query: systemInstructions });
 }
 
 async function saveFile(filename: string, content: string) {

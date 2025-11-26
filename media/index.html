@@ -612,6 +612,17 @@
         
         <!-- SIDEBAR: TOOLBOX -->
         <div class="sidebar">
+
+            <!-- AI Modification Prompt -->
+            <div class="sidebar-group">
+                <h3>AI Modification</h3>
+                <textarea id="ai-prompt" class="sidebar-input" rows="3" placeholder="Ask Copilot to modify the architecture..."></textarea>
+                <button id="btn-ask-copilot" class="btn btn-primary" style="width: 100%; margin-top: 8px; justify-content: center;">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Send to Copilot
+                </button>
+            </div>
+
+            <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 15px 0;">
             
             <!-- Project Global Description -->
             <div class="sidebar-group">
@@ -894,6 +905,19 @@
                 document.getElementById('btn-add-route').addEventListener('click', () => {
                     this.addRouteBlock();
                     this.updateNodeDataFromForm();
+                });
+
+                // AI Modification Button
+                document.getElementById('btn-ask-copilot').addEventListener('click', () => {
+                    const prompt = document.getElementById('ai-prompt').value;
+                    if (prompt.trim()) {
+                        vscode.postMessage({
+                            command: 'askCopilot',
+                            prompt: prompt
+                        });
+                        // Clear input
+                        document.getElementById('ai-prompt').value = '';
+                    }
                 });
             }
 
